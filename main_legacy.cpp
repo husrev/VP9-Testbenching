@@ -23,35 +23,29 @@ Also don't forget to assign your pattern of test sequences to the compare_lossy.
 #include <fstream>
 #include <iomanip>
 #include <chrono>
-#include <ctime>
 #include <boost/algorithm/string.hpp>
 #include "experiment.h"
-#include "sequences.h"
 
 int main()
 {   
-    std::string seqsDir = "../testsequences/";
+    std::string sequencesDirectory = "../testsequences/";
     double stepSize = 0.0001; // Step size in radians
     bool resumeExperiment = false;
     experiment finetuning(resumeExperiment);
     std::ios_base::openmode arg = resumeExperiment ? std::ofstream::app : arg = std::ofstream::out;
 
     // Open the log file
-    std::time_t end_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-    std::string time_now = std::ctime(&end_time);
-     
-    std::ofstream logfile( "log_" + time_now + ".txt" , arg);
+    std::ofstream logfile("log.txt", arg);
     logfile << "FINE TUNING EXPERIMENT LOG" << std::endl << std::endl;
     logfile << "Optimization started. StepSize=" << stepSize << " [rad] ";
 
     // Process the original VP9 binary and save results for future reference. 
-    std::string init_vp9 = finetuning.process("orig_unopt","init_vp9", seqsDir, trainSeqs, trainSize);
-        
-    std::string bestCandidate; 
+    std::string init_vp9 = finetuning.process("orig_unopt","init_vp9", sequencesDirectory);
 
     // Start optimizing each angle.
     for (int angle = finetuning.getStartAngle(); angle < 16; angle++)
     {
+        std::string bestCandidate; 
         int iteration = 0;
 
         // Loop until convergence for a specific angle.
@@ -59,14 +53,14 @@ int main()
         {
             // Save current coefficients and experiment results.
             finetuning.writeAngles();
-            std::string baseline = finetuning.process("modified","baseline", seqsDir, trainSeqs, trainSize);
+            std::string baseline = finetuning.process("modified","baseline", sequencesDirectory);
 
             // Print the initial BDBR with respect to the original VP9 binary.
             if(!iteration && !angle)
             {
-                std::cout << "Initial BDBR is " << finetuning.getBDBR(init_vp9, baseline, trainSize);
+                std::cout << "Initial BDBR is " << finetuning.getBDBR(init_vp9, baseline);
                 std::cout << std::endl;
-                logfile << "and the initial BDBR is " << finetuning.getBDBR(init_vp9, baseline, trainSize) ;
+                logfile << "and the initial BDBR is " << finetuning.getBDBR(init_vp9, baseline) ;
                 logfile << "%" << std::endl << std::endl;
             }
 
@@ -77,14 +71,14 @@ int main()
             // Obtain candidate-1 results for coefficient-1 for current angle
             finetuning.setAngle(angle, finetuning.getAngle(angle)-stepSize);
             finetuning.writeAngles();
-            std::string experiment1 = finetuning.process("modified","candidate1", seqsDir, trainSeqs, trainSize);
-            long double cand1BDBR = finetuning.getBDBR(baseline, experiment1, trainSize);
+            std::string experiment1 = finetuning.process("modified","candidate1", sequencesDirectory);
+            long double cand1BDBR = finetuning.getBDBR(baseline, experiment1);
 
             // Obtain candidate-2 results for coefficient+1 for current angle
             finetuning.setAngle(angle, finetuning.getAngle(angle)+2*stepSize);
             finetuning.writeAngles();
-            std::string experiment2 = finetuning.process("modified","candidate2", seqsDir, trainSeqs, trainSize);
-            long double cand2BDBR = finetuning.getBDBR(baseline, experiment2, trainSize);
+            std::string experiment2 = finetuning.process("modified","candidate2", sequencesDirectory);
+            long double cand2BDBR = finetuning.getBDBR(baseline, experiment2);
 
             iteration++;
 
@@ -116,21 +110,12 @@ int main()
             }
         }
         std::cout << "Optimized angle " << angle << ", current BDBR wrt VP9_ORIG is ";
-        std::cout << finetuning.getBDBR(init_vp9, bestCandidate, trainSize) << std::endl << std::endl;
+        std::cout << finetuning.getBDBR(init_vp9, bestCandidate) << std::endl << std::endl;
         logfile << "Optimized angle " << angle << ", current BDBR wrt original VP9 is ";
-        logfile << finetuning.getBDBR(init_vp9, bestCandidate, trainSize) << std::endl << std::endl;
+        logfile << finetuning.getBDBR(init_vp9, bestCandidate) << std::endl << std::endl;
     }
     std::cout << "Fine-tuning completed." << std::endl;
     logfile << "Fine-tuning completed." << std::endl;
-
-    std::string init_vp9_final = finetuning.process("orig_unopt","init_vp9_final", seqsDir, testSeqs, testSize);
-    std::string exp_final = finetuning.process("modified","exp_final", seqsDir, testSeqs, testSize);
-
-    logfile << "Optimized for Class B videos and tested on the other videos. Overall BDBR is ";
-    logfile << finetuning.getBDBR(init_vp9_final, exp_final, trainSize) << std::endl << std::endl;
-    std::cout << "Optimized for Class B videos and tested on the other videos. Overall BDBR is ";
-    std::cout << finetuning.getBDBR(init_vp9_final, exp_final, trainSize) << std::endl << std::endl;
-
     logfile.close();
 
     return 0;
